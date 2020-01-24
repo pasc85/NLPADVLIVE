@@ -1,0 +1,2787 @@
+---
+title: "<font size='4'>Natural Language Processing - Advanced (Python)</font>" 
+
+author: "Dr Paraskevi Pericleous and Dr Saliha Minhas"
+
+output: 
+  html_document:
+    theme: united
+    toc: yes
+    toc_float: yes
+---
+
+<style>
+
+img[alt='logo']{
+    width: 31%;
+    height: auto;
+}
+
+.freqdist .figure{
+  text-align: center;
+}
+
+.freqdist .figure img{
+  width: 80%;
+}
+
+</style>
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, echo=FALSE}
+htmltools::img(src = knitr::image_uri("C:/IR Course/NLP_Intro/pics/DataScienceCampus.png"), 
+               alt = 'logo', 
+               style = 'position:absolute; top:0; right:0; padding:10px;')
+```
+
+<br> 
+
+**Audience:** Diverse Background
+
+<br>
+
+**Time:** 1 day workshop (6 hours)
+
+<br>
+
+**Pre-Requisites:** Completion of NLP Introductory course developed by Data Science campus team and fulfillment of all prerequisites stated there. 
+
+
+<br>
+
+**Brief Description:** This course will focus on key topics in NLP that are driven by machine learning. It seeks to illustrate how text can be used for predictive modelling in key problem domains. 
+
+<br>
+
+**Aims, Objectives and Intended Learning Outcomes:** All participants through completion of this course should then have rigourous understanding of the pipeline to clean and preprocess  natural language and steps involved in preparing the data for machine learning algorithms. It also shows how advanced statistical techniques such topic modelling could be used to unearth topics in huge corpora.
+
+<br>
+
+**Dataset:** `BBC News headline Dataset`, `Airline tweets sentiments Dataset`, `IATI (descriptions on aid activity) dataset`
+
+<br>
+
+**Libraries:** Before attending the course please make sure that you read the course instructions that you received. 
+
+<br>
+
+**Acknowledgements:** Many thanks to Paraskevi Pericleous, Isabela Breton and Dan Lewis for reviewing the material. Many thanks to the Data Science Campus team based at AH, East Kilbride for reviewing course and commentary. Also thanks to everyone who attended the pilot course to provide feedback about the course.
+
+<br>
+
+```{r, echo=FALSE}
+library(reticulate)
+#use_python("/Library/Frameworks/Python.framework/Versions/3.7/bin/python3")
+use_python("/Library/Frameworks/Python.framework/Versions/3.7/bin/python3.7")
+#py_available() #if this is False, then use code chunk below. 
+#For problems with matplotlib and its backened: find your route, in the matplotlib create a matplotlibrc, use nano and type in the #matplotlibrc: backend: TkAgg and save it
+#(base) C02XR5T0JGH6:~ skevipericleous$ cd ~
+#(base) C02XR5T0JGH6:~ skevipericleous$ cd .matplotlib
+#(base) C02XR5T0JGH6:.matplotlib skevipericleous$ nano matplotlibrc
+#To confirm that it is there type:
+#(base) C02XR5T0JGH6:.matplotlib skevipericleous$ ls
+```
+
+<br>
+
+
+```{python, echo=FALSE, results=FALSE}
+import nltk
+import matplotlib
+import re
+from nltk import ngrams
+from nltk.stem import PorterStemmer
+from nltk.stem import WordNetLemmatizer
+from nltk.corpus import stopwords
+from nltk.corpus import brown
+from nltk.book import *
+from nltk.collocations import *
+from nltk.corpus import webtext
+from nltk.probability import FreqDist
+import gensim
+from gensim import models, corpora
+from gensim.models import TfidfModel
+from gensim.models import Word2Vec
+import sklearn
+from sklearn.decomposition import PCA
+from sklearn import feature_extraction
+from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity  
+from nltk.tokenize import word_tokenize
+from nltk.tag import pos_tag
+import wordcloud
+from wordcloud import WordCloud
+import string
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+import pickle
+import re
+import operator 
+import pandas as pd
+import numpy as np
+import os
+os.chdir("C:/IR Course/Adv -IR/")
+from collections import Counter
+#from sklearn.cluster import KMeans
+```
+
+<br>
+
+``````{r echo=FALSE, results='hide', message=FALSE}
+library("wordcloud")
+library("RColorBrewer")
+```
+
+
+
+## Chapter 1: Topic Modelling  <br> 
+<br>
+**Intended Learning Outcomes**
+<br>
+
+
+### 1.1 What is Topic Modelling
+<br>
+&nbsp;
+![](C:/IR Course/Adv -IR/pict64.png)
+<br>
+&nbsp;
+![](C:/IR Course/Adv -IR/pict65.png)
+
+<br>
+&nbsp;
+
+Topic Modelling is a method for discovering topics in a document collection. Topic is a collection of dominant keywords. Looking at the keywords, you can identify the topic.  
+
+There are many algorithms used for Topic Modelling, such as latent semantic analysis (LSA), Probabilistic Latent Semantic Analysis (pLSA), LDA (Bayesian version of pLSA), lda2vec (extension of word2vec and LDA). 
+
+In this course we will only focus on Latent Dirichlet Allocation (LDA) from the gensim library, which seems to be the most popular one. 
+
+When using LDA, each document in a set of documents is considered as a mixtrure of various topics. These topics are assigned to the document via the LDA. The assumption is that the topic distribution has a sparse Dirichlet prior, which includes the intuition that documents include a small set of topics and topics include a small set of frequent words. Topics are identified based on the likelihood of having co-occurrent terms.  
+
+
+### 1.2 Building a simple LDA Model
+
+The quality of the model depends on the text pre-processing, the choice of the algorithm, the number of topics we choose, the variety of the text topics and the parameter tuning. 
+
+**Steps:** 
+
+1. Create a dictionary using `corpora.Dictionary`
+
+2. Create the corpus and get the frequencies of the words using `doc2bow`
+
+3. Build and Train the LDA model using `gensim.models.ldamodel.LdaModel` 
+
+4. View and Interpret Topics using `print_topics`
+
+5. Compute model perplexity using `log_perplexity`. Perplexity is a measure of how well the model can predict the observed values in our sample. We can estimate perplexity for different LDA models. It is considered that the model with the lowest Perplexity performs better in predicting the observed values. 
+
+6. Compute model coherence using `CoherenceModel`. Coherence Score is a measure of how well the topic model can be humanly-intrepreted (= assessing the quality of the learned topics). A good model will provide coherent topics. The higher the coherence is, the better the topics are extracted.
+
+7. Visualize topics and keywords using `pyLDAvis.gensim.prepare`
+
+8. Find the optimal number of topics by building many LDA models with different values of number of topics and pick the one that gives the highest coherence value. 
+
+9. Find the dominant topic in document
+
+10. Find the most representative document for each topic
+
+11. Find the topic distribution across documents
+
+<br>
+
+## Chapter 2: Information Retrieval   
+
+
+<br>
+
+**Intended Learning Outcomes:** By the end of Chapter 2 you should be able to:-
+
+* Define key terms in Information Retrieval (IR).
+
+* List at a high level of abstraction key steps in developing an IR application.
+
+* Describe how IR can be challenging 
+
+* Describe an Inverted Index
+
+* Set up an inverted index for a document collection in Python using SCI Learn
+
+* Define 3 models used to build an IR application
+
+* Describe the Boolean Retrieval Model
+
+* Set up a Boolean Retrieval search over a document collection
+
+* Describe VSM approach to IR
+
+* Set up a VSM based IR program over a document collection
+
+* Describe Language Modelling approach to IR
+
+* Calculate maximum liklihood estimates for terms in a document collection.
+
+* Apply Linear Interpolation to query/document to determine a probability score for query/document.
+
+
+<br>
+
+### 2.1 What is Information Retrieval (IR)?
+
+<br>
+
+The meaning of the term Information Retrieval can be quite broad.
+
+Every time you look up information to get a task done could be considered IR.
+
+A useful definition given by Manning (2009):
+
+*IR is <font color="blue"> finding material </font> (usually documents) of an <font color="blue"> unstructured nature </font> (usually text) that satifies an <font color="blue">information need </font>
+from within  <font color="blue"> larger collections </font> (usually stored  on computers) * 
+
+<br>
+
+**Key Terms used in Information Retrieval**
+
+<br>
+
+An <font color="red"> information need </font>is the topic about which the user desires to know more about.
+
+A <font color="red"> query </font> is what the user conveys to the computer in an attempt to communicate the information need.
+
+A <font color="red"> document </font> is an information entity the user wants to retrieve.
+
+A document is <font color="red"> relevant </font> if the user perceives that it contains information of value with respect to
+their personal information need.
+
+A <font color="red"> collection </font> is  a set of documents.
+
+A  <font color="red"> term </font>  is a  word or concept that appears in a document or query
+
+An  <font color="red"> index </font> is a representation of information that makes querying easier
+
+<br>
+
+![](C:/IR Course/Adv -IR/pict4.png)
+
+<br>
+
+**Information Retrieval vs Web Search**
+
+
+IR is more than web search
+
+IR is concerned with the  <font color="red"> finding of </font> (any kind of) relevant information
+
+
+
+Up until a few decades ago, people preferred to get information from other people 
+eg booking travel via a human travel agent, librarians to search for books, paralegals etc. It used to be an activity only a few people engaged in.
+
+The world has changed, hundreds of millions of peope engage in information retrieval (IR) every data through web search. However many other cases of IR  eg email search, searching your laptop, interrogating corporate knowledge bases are also commonplace examples of search.
+
+Information retrieval has overtaken database retrieval as most information does not reside in database systems.
+
+
+
+
+
+<br>
+
+![](C:/IR Course/Adv -IR/pict6.png)
+
+
+<br>
+&nbsp;
+
+### 2.2 The Mechanics of Information Retrieval
+
+<br>
+
+&nbsp;
+
+![](C:/IR Course/Adv -IR/pict7.png)
+
+<br>
+&nbsp;
+
+
+### 2.3 The Central problem in IR
+
+<br>
+&nbsp;
+
+
+![](C:/IR Course/Adv -IR/pict3a.png)
+
+<br>
+&nbsp;
+
+
+![](C:/IR Course/Adv -IR/pict19.png)
+
+
+<br>
+&nbsp;
+
+
+
+Related to the above are the following issues:
+
+1. Document and query Indexing <br>
+    How to best represent their contents
+2. Query Evaluation(or retrieval process) <br>
+    To what extent does a document correspond to a query.
+3.  System Evaluation<br>
+    How good is a system ?
+    <font color="red">Are the retrieved documents relevant(precision).</font><br>
+4. <font color="red">Are all relevant documents retrieved (recall).</font>
+5. <font color="red">Relevant documents</font> need to be found very quickly from vast quantities of data (100's billions pages in some cases).
+
+
+
+<br>
+&nbsp;
+
+Questions to tackle in retrieval
+
+* How is a document represented with the selected keywords ? 
+* How are document and query representations compared to calculate a score ? 
+
+
+<br>
+&nbsp;
+
+
+The task in information retrieval is this: we have <font color="red"> vast amounts of information to which accurate and speedy access is becoming ever more difficult.</font>  One effect of this is that <font color="red"> relevant information gets ignored since it is never uncovered, </font> which in turn leads to much duplication of work and effort. With the advent of computers, a great deal of thought has been given to using them to provide rapid and intelligent retrieval systems. The idea of  <font color="red"> relevance </font> has slipped into the discussion. It is this notion which is at the centre of information retrieval. The purpose of an automatic retrieval strategy is to <font color="red"> retrieve all the relevant documents at the same time retrieving as few of the non-relevant as possible.</font> An IR system should  <font color="red"> generate a ranking which reflects relevance.</font>
+
+Most search engines use bag of words to build retrieval models. The document is treated as a bag of words
+
+
+<br>
+&nbsp;
+
+### 2.4 Document Representation: The Inverted Index
+
+<br>
+&nbsp;
+
+Basic Concept: Each document is described by a set of representative keywords called <font color="red"> index terms. </font><br>
+&nbsp;
+
+
+Assign a numerical weight to index terms
+
+<br>
+&nbsp;
+
+![](C:/IR Course/Adv -IR/pict5.png)
+
+<br>
+&nbsp;
+
+![](C:/IR Course/Adv -IR/pict10.png)
+
+&nbsp;
+&nbsp;
+<br>
+
+![](C:/IR Course/Adv -IR/pict8.png)
+
+
+<br>
+&nbsp;
+&nbsp;
+
+![](C:/IR Course/Adv -IR/pict9.png)
+
+<br>
+&nbsp;
+&nbsp;
+
+![](C:/IR Course/Adv -IR/pict12.png)
+
+<br>
+&nbsp;
+&nbsp;
+
+![](C:/IR Course/Adv -IR/pict13.png)
+
+<br>
+&nbsp;
+&nbsp;
+
+![](C:/IR Course/Adv -IR/pict14.png)
+
+<br>
+&nbsp;
+&nbsp;
+
+
+The above index is often represented as a <font color="red"> dictionary </font> file of terms with an associated 
+<font color="red"> postings   </font> file.
+<br>
+&nbsp;
+
+This  <font color="red"> inverted index </font>  structure is essentially without rivals as the most efficient structure for supporting ad hoc text search.
+
+
+<br>
+&nbsp;
+
+### <font color="blue"> Diving into Code </font>
+
+```{python}
+
+inverted_index_example = ["He likes to wink, He likes to drink!", "He likes to drink, and drink, and drink.", "The thing he likes to drink is ink","The ink he likes to drink is pink","He likes to wink, and drink pink ink" ] 
+
+
+def set_tokens_to_lowercase(data):
+    for index, entry in enumerate(data):
+        data[index] = entry.lower()
+    return data
+
+
+def remove_punctuation(data):
+    symbols = ",.!"
+    for index, entry in enumerate(symbols):
+        for index2, entry2 in enumerate (data):
+            data[index2] = re.sub(r'[^\w]', ' ', entry2)
+    return data
+
+def remove_stopwords_from_tokens(data):
+       stop_words = set(stopwords.words("english"))
+       new_list = []
+       for index, entry in enumerate(data):
+           no_stopwords = ""
+           entry = entry.split()
+           for word in entry:
+               if word not in stop_words:
+                    no_stopwords = no_stopwords + " " + word 
+           new_list.append(no_stopwords)
+       return new_list
+
+
+inverted_index_example = remove_stopwords_from_tokens(remove_punctuation(set_tokens_to_lowercase(inverted_index_example)))
+
+vectorizer = CountVectorizer()
+inverted_index_vectorised = vectorizer.fit_transform(inverted_index_example)
+
+#if u want to look at it
+tdm = pd.DataFrame(inverted_index_vectorised.toarray(), columns = vectorizer.get_feature_names())
+print (tdm.transpose())
+
+
+```
+
+
+<br>
+&nbsp;
+&nbsp;
+
+
+The following can be said about the inverted index:- <br>
+&nbsp;
+•  It maps terms to the documents that contain them. It “inverts” the collection (which maps documents to the words they contain)<br>
+&nbsp;
+•  It permit us to answer boolean queries without visiting entire corpus<br>
+&nbsp;
+• It is slow to construct (requires visiting entire corpus) but this only needs to be done once<br>
+&nbsp;
+• It can be used for any number of queries<br>
+&nbsp;
+• It can be done before any queries have been seen<br>
+&nbsp;
+
+<br>
+&nbsp;
+&nbsp;
+
+
+**Exercise:**
+<br>
+&nbsp;
+
+1. Set up an inverted index using Python that would be built for the following document collection. Basic preprocessing should also be undertaken on the data.<br>
+
+&nbsp;
+Doc 1: New home sales top forecasts. <br>
+&nbsp;
+Doc 2: Home sales rise, in July! <br>
+&nbsp;
+Doc 3 Increase in home sales, in July. <br>
+&nbsp;
+Doc 4 July new home sales rise. <br>
+&nbsp;
+
+
+2. Write a Python function that will take 2 words (eg “home” and “sales”) and returns document(s) that contains both the words.<br>
+
+&nbsp;
+
+
+**Optional Extra:**<br>
+
+&nbsp;
+
+Find documents matching query "pink ink"<br>
+
+&nbsp;
+
+1. Find document containing both words<br>
+
+&nbsp;
+2. Both words has to be a phrase<br>
+
+&nbsp;
+
+We could have a bi-gram index<br>
+
+&nbsp;
+
+
+
+
+![](C:/IR Course/Adv -IR/pict17.png)
+
+<br>
+&nbsp;
+
+Bi-gram index issues:<br>
+&nbsp;
+Fast but index size will explode<br>
+&nbsp;
+What aboout trigram phrases<br>
+&nbsp;
+What about proximity? "ink is pink"<br>
+&nbsp;
+
+
+A possible solution: Proximity Index<br>
+
+&nbsp;
+
+Term position is embedded to the inverted index<br>
+
+&nbsp;
+
+Called proximity/positional index<br>
+&nbsp;
+Enables phrase and proximity search <br>
+ 
+
+<br>
+&nbsp;
+&nbsp;
+ 
+ 
+![](C:/IR Course/Adv -IR/pict18.png)
+
+
+
+<br>
+&nbsp;
+&nbsp;
+
+Implement positional inverted index on data shown below. <br>
+&nbsp;
+You need to save the following information in terms inverted lists:<br>
+&nbsp;
+- term (pre-processed) and its document frequency <br>
+&nbsp;
+- list of documents where this term occured<br>
+&nbsp;
+- for each document, list of positions where the term occured within the document<br>
+&nbsp;
+<br>
+
+Doc 1: breakthrough drug for schizophrenia<br>
+&nbsp;
+Doc 2: new schizophrenia drug  <br>
+&nbsp;
+Doc 3: new approach for treatment of schizophrenia <br>
+&nbsp;
+Doc 4: new hopes for schizophrenia patients <br>
+
+
+<br>
+&nbsp;
+
+
+### 2.5 Taxonomy of Classical IR Models
+
+<br>
+&nbsp;
+
+For effectively retrieving relevant documents by IR strategies, the documents are typically transformed into a suitable representation. Each retrieval strategy incorporates a specific model for its document representation purposes.
+
+
+
+A retrieval model specifies the details of:<br>
+&nbsp;
+• Document representation<br>
+&nbsp;
+• Query representation<br>
+&nbsp;
+• Retrieval function: how to find relevant results<br>
+&nbsp;
+• Determines a notion of relevance<br>
+&nbsp;
+
+
+In classical IR models a document is described as a set of representative keywords - <font color="red"> index terms </font> . Each term is assigned a numerical weight to determine relavance. 
+
+
+
+
+
+
+<br>
+&nbsp;
+&nbsp;
+
+![](C:/IR Course/Adv -IR/pict11.png)
+
+<br>
+&nbsp;
+
+
+### 2.6 Classical IR Models: Boolean Retrieval 
+
+<br>
+&nbsp;
+
+The simplest form of document retrieval is for a computer
+to do this sort of linear scan through documents. This process is commonly
+<font color="red">  GREP </font> referred to as grepping through text, after the Unix command grep, which
+performs this process. However,searching through large collections (billions to trillions of words) is unacceptably slow.
+More flexible matching operations require ranked retrieval.
+
+One alternative to linearly scanning is to index the documents in advance.
+
+Suppose we record for each document – here a play of Shakespeare’s – whether it
+contains each word out of all the words Shakespeare used ( <font color="red">INCIDENCE MATRIX </font> about 32,000 different words). The result is a binary term-document incidence matrix, as in Figure.  Terms that are indexed are usually words.
+
+
+<br>
+&nbsp;
+&nbsp;
+
+
+![](C:/IR Course/Adv -IR/pict15.png)
+
+<br>
+&nbsp;
+&nbsp;
+
+We can have a vector for each term, which shows the documents
+it appears in, or a vector for each document, showing the terms that occur in
+it. To answer the query *Brutus* AND *Caesar* AND NOT *Calpurnia*, we take the
+vectors for Brutus, Caesar and Calpurnia, complement the last, and then do a
+bitwise AND:
+110100 AND 110111 AND 101111 = 100100.<br>
+&nbsp;
+The answers for this query are thus Antony and Cleopatra and Hamlet.
+
+
+<br>
+&nbsp;
+
+![](C:/IR Course/Adv -IR/pict16.png)
+
+<br>
+&nbsp;
+
+**Question**
+
+
+1. Contruct the term-document incidence matrix for documents in the Python list below. 
+2. What are the returned results for query
+    
+    a. drink AND ink AND NOT pink
+
+<br>
+&nbsp;
+
+
+### <font color="blue"> Diving into Code </font>
+
+```{python}
+
+
+data = ["He likes to wink, He likes to drink!", "He likes to drink, and drink, and drink.", "The thing he likes to drink is ink","The ink he likes to drink is pink","He likes to wink, and drink pink ink" ] 
+
+data = remove_stopwords_from_tokens(remove_punctuation(set_tokens_to_lowercase(data)))
+
+binary_vectorizer = CountVectorizer(binary=True)
+counts = binary_vectorizer.fit_transform(data)
+
+#if u want to look at it
+tdm = pd.DataFrame(counts.toarray(), columns = binary_vectorizer.get_feature_names())
+tdm=tdm.transpose()
+print (tdm)
+
+
+def NOT(pterm): 
+    for a in range(len(pterm)):
+        if(pterm[a] == 0): 
+            pterm[a] = 1
+        elif(pterm[a] == 1): 
+           pterm[a] = 0
+    return pterm
+
+
+term1 =  list(tdm.loc['drink'])
+term2 = list(tdm.loc['ink'])
+term3 =  NOT(list(tdm.loc['pink']))
+terms = list(zip(term1, term2, term3))
+
+vector= [terms[item][0] & terms[item][1] & terms[item][2]for item in range(len(terms))] 
+
+for i in vector:
+    if i == 1:
+        print ("Document", vector.index(i), "meets search term criteria")
+
+```
+
+<br>
+&nbsp;
+
+The <font color="red"> Boolean retrieval model </font>  is a model for information retrieval in which we
+can pose any query which is in the form of a Boolean expression of terms,
+that is, in which terms are combined with the operators **AND**, **OR**, and **NOT**.
+The model views each document as just a set of words
+
+<br>
+The following can be said of the Boolean Retrieval Model:- <br>
+&nbsp;
+• It can answer any query that is made up of boolean expressions<br>
+&nbsp;
+• Boolean queries are queries that use **and**, **or** and **not** to join query terms <br>
+&nbsp;
+• Views each document as a set of terms <br>
+&nbsp;
+• It is precise - document matches conditions or not<br>
+&nbsp;
+• Primary commercial retrieval tool for 3 decades<br>
+&nbsp;
+• Many professional searchers (e.g., lawyers) still like boolean queries <br>
+&nbsp;
+• You know exactly what you are getting <br>
+&nbsp;
+• It does not have a built-in way of ranking matched documents by some notion of relevance <br>
+&nbsp;
+• It is easy to understand. Clean formalism <br>
+&nbsp;
+• It is too complex for web users <br>
+&nbsp;
+• Incidence matrix is impractical for big collections <br>
+&nbsp;
+
+**Exercise:**
+
+<br>
+
+Consider these documents:<br>
+&nbsp;
+Doc 1: breakthrough drug for schizophrenia<br>
+&nbsp;
+Doc 2: new schizophrenia drug  <br>
+&nbsp;
+Doc 3: new approach for treatment of schizophrenia <br>
+&nbsp;
+Doc 4: new hopes for schizophrenia patients <br>
+
+
+1. Draw the term-document incidence matrix for this document collection
+<br>
+&nbsp;
+2. What are the returned results for query
+<br>
+&nbsp;
+schizophrenia AND drug
+
+<br>
+
+
+### 2.7 Classical IR Models: Vector Space Model<br>
+&nbsp;
+
+The representation of a set of documents as vectors in a common vector space is known as the <font color="red"> Vector Space Model</font> . Every distinct word has one dimension.
+
+<br>
+
+Key idea: Documents and queries are vectors in a high-dimensional space.<br>
+&nbsp;
+
+Key issues:<br>
+&nbsp;
+
+
+**• What to select as the dimensions of this space?**<br>
+&nbsp;
+**• How to convert documents and queries into vectors?**<br>
+&nbsp;
+**• How to compare queries with documents in this space?**<br>
+&nbsp;
+
+The Vector Space Model assumes that<br>
+&nbsp;
+
+• the degree of matching can be used to rank-order documents;<br>
+&nbsp;
+• this rank-ordering corresponds to how well a document satisfying a user’s
+information need<br>
+&nbsp;
+
+
+**Steps in Vector Space Modelling** <br>
+
+&nbsp;
+• Convert the query to a vector of terms<br>
+&nbsp;
+• Weight each component.<br>
+&nbsp;
+• Consult the index to find all documents containing each term<br>
+&nbsp;
+• Convert each document to a weighted vector<br>
+&nbsp;
+• Query and documents mapped to vectors and their angles compared<br>
+&nbsp;
+• Match the query vector against each document vector and sort the documents
+by their similarity <br>
+&nbsp;
+• Similarity based on occurrence frequencies of keywords in query and
+document <br>
+&nbsp;
+• Output documents are ranked according to similarity to query <br>
+&nbsp;
+
+
+**Challenges**<br>
+&nbsp;
+
+• Finding a good set of basis vectors.<br>
+&nbsp;
+• Finding a good weighting scheme for terms, since model provides
+no guidance.<br>
+Usually variations on (length normalised) tf*idf<br>
+&nbsp;
+• Finding a comparison function, since again the model
+provides no guidance. Usually cosine comparison.
+&nbsp;
+
+
+
+Comments on Vector Space Models <br>
+&nbsp;
+• Simple, practical, and mathematically based approach<br>
+&nbsp;
+• Lacks the control of a Boolean model (e.g., requiring a term to appear in a document)<br>
+&nbsp;
+
+**Overall, Vector Space Models are hard to beat**<br>
+&nbsp;
+
+
+Consider below documents and a query term <br>
+&nbsp;
+
+
+**Document 1: Cat runs behind rat**<br>
+&nbsp;
+**Document 2: Dog runs behind cat**<br>
+&nbsp;
+**Query: rat**<br>
+&nbsp;
+
+
+A <font color="red"> term document matrix </font>  would be set up. This is a way is a way of representing documents vectors <br>
+&nbsp; 
+in a matrix format in which <font color="red"> each row represents term vectors </font> across all the documents and <font color="red"> columns represent document vectors </font>  across all the terms.<br>
+&nbsp;
+
+Term weights are calculated for all the terms in the matrix across all the documents.<br>
+&nbsp;
+ 
+A word which occurs in most of the documents might not contribute to represent the document relevance whereas less frequently occurred terms might define document relevance. This can be achieved using a method known as <font color="red">  term frequency - inverse document frequency (tf-idf) </font> which gives <font color="red"> higher weights to the terms which occurs more in a document but rarely occurs in all other documents, lower weights to the terms which commonly occurs within and across all the documents.
+Tf-idf = tf X idf </font> <br>
+&nbsp;
+
+
+
+![](C:/IR Course/Adv -IR/pict22.png)
+
+
+**Similarity Measures: cosine similarity**<br>
+&nbsp;
+
+Mathematically, <font color="red"> closeness between two vectors is calculated by calculating the cosine angle between two vectors.</font> The cosine angle between each document vector and the query vector is calculated to find its closeness. To find relevant document to the query term , the similarity score between each document vector and the query term vector by is calculated by applying cosine similarity . <font color="red"> Whichever documents have a high similarity score  will be considered as relevant documents to the query term.</font><br> 
+&nbsp;
+
+
+
+![](C:/IR Course/Adv -IR/pict20.png)
+
+<br> 
+&nbsp;
+
+
+![](C:/IR Course/Adv -IR/pict24.png)
+
+<br> 
+&nbsp;
+
+
+![](C:/IR Course/Adv -IR/pict25.png)
+
+
+
+<br>
+&nbsp;
+
+**Summary on VSM**<br>
+&nbsp;
+&nbsp;
+&nbsp;
+
+
+
+![](C:/IR Course/Adv -IR/pict23.png)
+
+&nbsp;
+
+### <font color="blue"> Diving into Code </font><br>
+
+&nbsp;
+
+The IATI dataset will be used, further details on this dataset can be found here https://iatistandard.org/en/iati-standard/
+The dataset used below is a subset which provides description on aid activity undertaken by 
+various organisation in the aid sector around the world.
+
+
+```{python}
+
+
+import operator
+import pandas as pd
+import re
+import sklearn
+from sklearn.decomposition import PCA
+from sklearn import feature_extraction
+from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
+from nltk import ngrams
+from nltk.stem import PorterStemmer
+from nltk.stem import WordNetLemmatizer
+from nltk.corpus import stopwords
+from nltk.corpus import brown
+from nltk.collocations import *
+from nltk.corpus import webtext
+import numpy as np
+import random
+import pickle
+import pandas as pd
+from sklearn.metrics.pairwise import cosine_similarity  
+
+
+def set_tokens_to_lowercase(data):
+    for index, entry in enumerate(data):
+        data[index] = entry.lower()
+    return data
+
+
+def remove_punctuation(data):
+    symbols = ",.!"
+    for index, entry in enumerate(symbols):
+        for index2, entry2 in enumerate (data):
+            data[index2] = re.sub(r'[^\w]', ' ', entry2)
+    return data
+
+def remove_stopwords_from_tokens(data):
+       stop_words = set(stopwords.words("english"))
+       new_list = []
+       for index, entry in enumerate(data):
+           no_stopwords = ""
+           entry = entry.split()
+           for word in entry:
+               if word not in stop_words:
+                    no_stopwords = no_stopwords + " " + word 
+           new_list.append(no_stopwords)
+       return new_list
+   
+    
+def stemming (data):
+    st = PorterStemmer()
+    for index, entry in enumerate(data):
+        data[index] = st.stem(entry)
+    return data
+  
+def read_data():
+    raw_data_orig  = open("C:/IR Course/Adv -IR/IATI3.pkl","rb")
+    raw_data_orig = pickle.load(raw_data_orig, encoding='iso-8859-1')
+    raw_data_orig = raw_data_orig[raw_data_orig['description'].notnull()]
+    return raw_data_orig
+
+
+query ="climate change and environmental degradation"
+
+def preprocess(pdf):
+    for index, row in pdf.iterrows():
+            row['description'] = " ".join(stemming(remove_stopwords_from_tokens(remove_punctuation(set_tokens_to_lowercase(row['description'].split(" "))))))
+    return pdf
+
+#preprocess documents
+raw_data= preprocess(read_data())
+
+
+#now preprocess query
+query = " ".join(stemming(remove_stopwords_from_tokens(remove_punctuation(set_tokens_to_lowercase(query.split(" "))))))
+rownames = raw_data["iati-identifier"]
+
+
+#vectorise and get tfidf values
+vectorizer = TfidfVectorizer()
+vectorized_iati = vectorizer.fit_transform(raw_data["description"])
+tdm = pd.DataFrame(vectorized_iati.toarray(), columns = vectorizer.get_feature_names())
+tdm=tdm.set_index(rownames)
+
+#now vectorise query
+vectorized_query=vectorizer.transform(pd.Series(query))
+query = pd.DataFrame(vectorized_query.toarray(), columns = vectorizer.get_feature_names())
+
+# get cosine similarity
+
+def cos_sim (pdf, qdf):
+    f_similarity={}   
+    for index, row in qdf.iterrows():
+        for index2, row2 in pdf.iterrows():
+             cos_result = cosine_similarity(np.array(row).reshape(1, row.shape[0]), np.array(row2).reshape(1, row2.shape[0]))
+             f_similarity[index2] = round(float(cos_result),5)
+    return f_similarity
+
+cosine_scores=cos_sim (tdm, query)
+#now rank
+final_rank= sorted(cosine_scores.items(), key=operator.itemgetter(1), reverse=True)
+final_rank = final_rank[0:5]
+rownames = rownames.tolist()
+unprocessed  = read_data()
+
+for item in final_rank:
+    if item[0] in rownames:
+         
+        print('IATI-IDENTIFIER {0} DESCRIPTION {1}'.format(item[0],unprocessed.iloc[rownames.index(item[0]),2])) 
+        
+
+```
+
+
+<br>
+&nbsp;
+
+**Exercise:**<br>
+
+&nbsp;
+
+
+From the **IATI10k.csv** file, extract a sample of records (for example 100 rows) then do the
+following: <br>
+&nbsp;
+1. Put the description column through pre-processing. Make a decision on what preprocessing routines would be suitable.<br>
+&nbsp;
+2. Set up a suitable query to interrogate the document collection. <br>
+&nbsp;
+3. Construct the inverted index with tf-idf scores. Ensure that the query is has also been converted to a vector with tf-idf scores.<br>
+&nbsp;
+4.Compare the query vector with all other vectors in the document collection and calculate cosine similarity. Then store in a dictionary the iati-identifer field as a key with the cosine score  as a value in a Python dictionary.<br>
+&nbsp;
+5. Rank the dictionary by cosine scores (value field in the dictionary) and print the top 10 scores (sort in ascending value). <br>
+&nbsp;
+
+
+
+
+
+### 2.8 Classical IR Models: Probability based Information Retrieval <br>
+&nbsp;
+&nbsp;
+
+![](C:/IR Course/Adv -IR/pict33.png)
+
+<br>
+&nbsp;
+
+Use probability to determine relevance. How well does a document satisfy the query ?
+
+An IR sytem has an <font color="red"> uncertain understanding </font> of the user query and makes an  <font color="red"> uncertain guess </font>
+of whether a document satisifes the query.
+
+Probability theory provides a principled foundation for such <font color="red"> reasoning under uncertainty </font>
+
+The query and the documents are all observations from <font color="red"> random variables </font>. In the vector-based models, we assume they are vectors, but here we assume they are the data observed from random variables
+
+And so, the problem of retrieval becomes to estimate the probability of relevance
+ 
+In this category of models, there are different variants.<br>
+&nbsp;
+&nbsp;
+
+
+&nbsp;
+&nbsp;
+
+**Classical probabilistic retrieval models**
+
+<br>
+&nbsp;
+       <font color="blue"> Binary Independence Model<br> </font>
+&nbsp;
+       <font color="blue"> Okapi BM25<br>  </font>
+&nbsp;
+     <font color="blue"> Bayesian networks for text retrieval<br> </font>
+&nbsp;
+    <font color="red">Language model approach to IR<br> </font>
+&nbsp;
+
+
+
+**Probability Ranking Principle**<br>
+&nbsp;
+
+
+
+![](C:/IR Course/Adv -IR/pict28.png)
+
+<br>
+&nbsp;
+
+
+### Language Modelling Approach to Retrieval - Query Liklihood Retrieval Model
+<br>
+&nbsp;
+
+
+In query likelihood, our assumption is that this probability of relevance can be approximated by the probability of query given a document and relevance.  <br>
+&nbsp;
+
+How do we compute this conditional probability? <br>
+&nbsp;
+
+This is where we build a Language Model. <br>
+&nbsp;
+
+**What is a language model ?**<br>
+&nbsp;
+
+<font color="red">*“The goal of a language model is to assign a probability
+to a sequence of words by means of a probability
+distribution”* </font> --Wikipedia
+
+To understand what a language model, must know what is a:<br>
+&nbsp;
+
+• probability distribution<br>
+&nbsp;
+• discrete random variable<br>
+&nbsp;
+
+In a <font color="red"> unigram language model </font>  we estimate (and predict) the likelihood of each word independent of any other word<br>
+&nbsp;
+
+Defines a probability distribution over <font color="red"> individual words </font>
+
+![](C:/IR Course/Adv -IR/pict34.png)
+
+<br>
+&nbsp;
+
+
+
+Sequences of words can be assigned a probability by
+multiplying their individual probabilities:<br>
+&nbsp;
+
+**P(university of north carolina) =
+P(university) x P(of) x P(north) x P(carolina) =
+(2/20) x (4/20) x (2/20) x (1/20) = 0.0001**
+
+<br>
+&nbsp;
+There are two important steps in language modeling <br>
+&nbsp;
+&nbsp;
+<font color="red"> ‣ estimation: </font> observing text and estimating the
+probability of each word <br>
+&nbsp;
+<font color="red"> ‣ prediction: </font> using the language model to assign a probability to a span of text. <br>
+&nbsp;
+
+
+### Unigram Language Model Estimation<br>
+&nbsp;
+
+General estimation approach:<br>
+&nbsp;
+
+‣ tokenize/split the text into terms<br>
+&nbsp;
+‣ count the total number of term occurrences (N)<br>
+&nbsp;
+‣ count the number of occurrences of each term (tft)<br>
+&nbsp;
+‣ assign term t a probability equal to<br>
+&nbsp;
+
+![](C:/IR Course/Adv -IR/pict35.png)
+
+
+### Document Language Models<br>
+&nbsp;
+• Suppose we have a document D, with language model<br>
+&nbsp;
+• We can use this language model to determine the
+  probability of a particular sequence of text<br>
+&nbsp;
+• How? We multiple the probability associated with each
+  term in the sequence!<br>
+&nbsp;
+  
+
+Example:-<br>
+&nbsp;
+
+![](C:/IR Course/Adv -IR/pict36.png)
+
+ <br>
+&nbsp;
+
+
+**Question:** <br>
+&nbsp;
+
+*What is the probability given by this language model to
+the sequence of text “rocky is a boxer” or “a boxer is a pet”?*<br>
+&nbsp;
+
+
+To summarise how is the document model estimated for each
+document?<br>
+&nbsp;
+
+![](C:/IR Course/Adv -IR/pict41.png)
+
+
+<br>
+&nbsp;
+
+
+
+### Query-Likelihood Retrieval Model: Some Examples<br>
+&nbsp;
+
+• Objective: rank documents based on the probability that
+they are on the same topic as the query<br>
+&nbsp;
+• Solution:<br>
+&nbsp;
+‣ Score each document (denoted by D) according to
+the probability given by its language model to the
+query (denoted by Q)<br>
+&nbsp;
+‣ Rank documents in descending order of score<br>
+&nbsp;
+
+![](C:/IR Course/Adv -IR/pict37.png)
+
+<br>
+&nbsp;
+
+
+Every document in the collection is associated with a
+language model<br>
+&nbsp;
+• Let denote the language model associated with
+document D <br>
+&nbsp;
+• Think of a “black-box”: given a word, it
+outputs a probability <br>
+&nbsp;
+
+![](C:/IR Course/Adv -IR/pict38.png)
+
+
+Let P(t|θD) denote the probability given by to term t <br>
+&nbsp;
+
+
+![](C:/IR Course/Adv -IR/pict39.png)
+
+<br>
+&nbsp;
+
+
+**Question:** <br>
+&nbsp;
+
+
+*Which would be the top-ranked document and what would be its score?*<br>
+&nbsp;
+
+
+![](C:/IR Course/Adv -IR/pict40.png)
+
+
+<br>
+&nbsp;
+
+<font color="blue"> P(q|M1) > P(q|M2) </font>
+
+<br>
+&nbsp;
+
+             
+
+
+### Query-Likelihood Retrieval Model: Some Issues<br>
+&nbsp;
+
+There are (at least) two issues with scoring documents based on query terms<br>
+&nbsp;
+
+A document with a single missing query-term will
+receive a score of zero (similar to boolean AND)<br>
+&nbsp;
+• Where is IDF?<br>
+&nbsp;
+• No attempt is made to suppress the contribution of terms
+that are frequent in the document and also frequent in
+general (appear in many documents)?<br>
+&nbsp;
+&nbsp;
+
+
+### Query-Likelihood Retrieval Model: Add One Smoothing and Linear Interpolation <br>
+&nbsp;
+&nbsp;
+
+![](C:/IR Course/Adv -IR/pict42.png)
+
+
+• The goal of smoothing is to ...<br>
+&nbsp;
+
+‣ Decrease the probability of observed outcomes<br>
+&nbsp;
+‣ Increase the probability of unobserved outcomes<br>
+&nbsp;
+
+
+**Add One Smoothing**<br>
+&nbsp;
+
+
+![](C:/IR Course/Adv -IR/pict43.png)
+
+<br>
+&nbsp;
+
+A more effective approach to smoothing for information retrieval is called <font color="red"> linear interpolation </font><br>
+&nbsp;
+             
+Let denote the language model associated with
+document D<br>
+&nbsp;
+• Let denote the language model associated with the
+entire collection<br>
+&nbsp;
+• Using linear interpolation, the probability given by the
+document language model to term *t is:<br>
+&nbsp;
+
+![](C:/IR Course/Adv -IR/pict45.png)
+
+<br>
+&nbsp;
+
+As before, a document’s score is given by the probability
+that it “generated” the query<br>
+&nbsp;
+
+• As before, this is given by multiplying the individual
+query-term probabilities<br>
+&nbsp;
+
+• However, the probabilities are obtained using the
+linearly interpolated language model<br>
+&nbsp;
+
+Without smoothing, the query-likelihood model ignores
+how frequently the term occurs in general!<br>
+&nbsp;
+
+
+
+
+![](C:/IR Course/Adv -IR/pict47.png)
+<br>
+&nbsp;
+
+
+
+![](C:/IR Course/Adv -IR/pict46.png)
+<br>
+&nbsp;
+
+
+![](C:/IR Course/Adv -IR/pict48.png)
+
+<br>
+&nbsp;
+
+
+### <font color="blue"> Diving into Code </font>
+
+
+
+```{python}
+
+import nltk
+import sys
+import codecs
+import nltk
+from nltk.corpus import stopwords
+import csv
+import pandas
+import re
+import numpy as np
+
+
+   
+df = pandas.read_csv('C:/IR Course/Adv -IR/IATI10k.csv', header = 0, encoding="iso-8859-1")
+df = df[df.description.notnull()]
+
+def set_tokens_to_lowercase(data):
+    for index, entry in enumerate(data):
+        data[index] = entry.lower()
+    
+    return data
+
+def remove_punctuation(data):
+    symbols = ",.!"
+    for index, entry in enumerate(symbols):
+        for index2, entry2 in enumerate (data):
+            data[index2] = re.sub(r'[^\w]', ' ', entry2)
+            data[index2] = entry2.strip()
+            
+    return data
+
+def remove_stopwords_from_tokens(data):
+       stop_words = set(stopwords.words("english"))
+       stop_words.add(" ")
+       new_list = []
+       for index, entry in enumerate(data):
+               if entry not in stop_words:
+                    new_list.append(entry)
+       return new_list
+
+def clean_df(pdf):
+  
+    for index, row in pdf.iterrows():
+         row['description'] =  remove_stopwords_from_tokens(remove_punctuation(set_tokens_to_lowercase(row['description'].split())))  
+         row['description'] = " ".join(x for x in row['description'])
+    return pdf
+
+
+def calc_docscore(pdf, pqry):
+    col_names =  ['Description', 'score']
+    f_df2  = pandas.DataFrame(columns = col_names)
+    for index, row in pdf.iterrows(): 
+        rank = []
+        docscore = 0
+        scored = score(row['description'])
+        for word in pqry.split(" "):
+            if word in scored.keys():
+                rank.append(float(scored[word] )+ float(allcounts[word]/total)/2)
+        
+        if rank != []:
+            docscore = np.prod(np.array(rank)) 
+           
+        f_df2.loc[index] = pandas.Series({'Description':row['description'], 'score':docscore})
+    return f_df2
+               
+def score (pstr):
+    fdict = {}
+    flist = pstr.split()
+    fdict = dict(nltk.FreqDist(flist))
+    for  key, value in fdict.items():
+        fdict[key] = round(fdict[key]/len(flist),2)
+    return fdict
+
+df = clean_df(df)
+qry = "reduce transmission of HIV"
+qry=  remove_stopwords_from_tokens(remove_punctuation(set_tokens_to_lowercase(qry.split())))
+qry = " ".join(x for x in qry)      
+
+allcounts = {} 
+for descript in df['description']:
+      tmp = dict(nltk.FreqDist(descript.split()))
+      for key, value in tmp.items():
+        if key not in allcounts:
+            allcounts[key] = value
+        else: 
+            allcounts[key] = allcounts[key] + value
+total = sum(allcounts.values())
+df2=calc_docscore(df, qry) 
+   
+df2sort_by_score = df2.sort_values('score', ascending=False)
+print (df2sort_by_score[1:20])
+    
+  
+
+```
+
+
+<br>
+&nbsp;
+
+
+**Exercises:**<br>
+&nbsp;
+
+
+Suppose the document collection contains two documents:
+
+$d_1$:  Xyzzy reports a profit but revenue is down<br>
+&nbsp;
+$d_2$:  Quorus narrows quarter loss but revenue decreases further<br>
+&nbsp;
+
+
+**The query is: "revenue down" **
+<br>
+&nbsp;
+
+Calculate maximum liklihood estimates for terms in document 1 and document 2.<br>
+&nbsp;
+Apply the linear interpolation and calulate the score for query/document 1 and query/document 2.<br>
+&nbsp;
+
+
+
+2. Below are 4 mini documents, used previously.<br>
+&nbsp;
+
+
+D1: He likes to wink, he likes to drink<br>
+&nbsp;
+D2: He likes to drink, and drink, and drink<br>
+&nbsp;
+D3: The thing he likes to drink is ink<br>
+&nbsp;
+D4: The ink he likes to drink is pink<br>
+&nbsp;
+D5: He likes to wink, and drink pink ink<br>
+&nbsp;
+
+Query: "drink pink ink"<br>
+&nbsp;
+
+Write Python code to do the following:<br>
+&nbsp;
+
+- lower case text, remove punctuation<br>
+&nbsp;
+- apply linear interpolation to calculate score for document and query <br>
+&nbsp;
+
+
+
+### 2.9 Search Engine In Focus: Elastic Search <br>
+&nbsp;
+&nbsp;
+
+
+
+
+![](C:/IR Course/Adv -IR/pict50.png)
+
+<br>
+&nbsp;
+
+
+Elasticsearch is a real-time distributed and open source full-text search and analytics engine.<br>
+&nbsp;
+It is accessible from RESTful web service interface and stores documents in JSON (see example https://json.org/example.html) format. <br>
+&nbsp;
+It is built on Java programming language and hence Elasticsearch can run on different platforms.<br>
+&nbsp;
+It enables users to explore very large amount of data at very high speed.<br>
+&nbsp;
+
+At heart it uses an inverted index as shown in Figure X. It maps terms to documents (and possibly positions in the documents) containing the term.<br>
+&nbsp;
+An <font color="red">  index  </font> is a collection of documents, and a <font color="red"> shard </font> is a subset thereof. Documents are scored using tf-idf calculations.<br>
+&nbsp;
+
+To minimize index sizes, various compression techniques are used. For example, when storing the postings (which can get quite large).<br>
+&nbsp;
+Updating the index in elastic search is a delete followed by a re-insertion of the document. This keeps the data structures small and compact at the cost of an efficient update.<br>
+&nbsp;
+When new documents are added (perhaps via an update), the index changes are first buffered in memory. <br>
+&nbsp;
+Eventually, the index files in their entirety, are <font color="red"> flushed </font>  to disk. <br>
+&nbsp;
+
+
+
+### 3.0 Future of IR - Challenges Ahead <br>
+&nbsp;
+
+
+*Data Volume*
+<br>
+&nbsp;
+
+Amount of digital data in 2007: 281 exabytes = 281 trillion digitized novels<br>
+&nbsp;
+
+**"Every 2 days now, we create as much information as we did from the dawn of civilisation up until 2003"** <br>
+&nbsp;
+
+Eric Schmidt<br>
+&nbsp;
+
+
+*Vocabulary mismatch problem due to synonymy and polysemy.*
+<br>
+&nbsp;
+&nbsp;
+The same word has different meanings. <br>
+&nbsp;
+A search engine might not be able to guess the right meaning 
+if appropriate contexts are not provided.<br>
+&nbsp;
+
+
+*IR-systems are as good as the query provided to them.*
+<br>
+&nbsp;
+&nbsp;
+Queries are provided by the human, and human is the weak link in this chain.<br>
+&nbsp;
+So, high quality query is a must. With a very bad query, you can defeat any search engine.<br>
+&nbsp;
+
+**A search query is : Windows**
+
+<br>
+
+For the query, a search engine (like- Google) can show results of three types as following:<br>
+
+<font color="blue">**Computer OS: Wind ows** </font> 
+<br>
+&nbsp;
+<font color="blue"> **Windows of buildings** </font> 
+<br>
+&nbsp;
+<font color="blue"> **Combination of both (1) and (2)** </font> 
+<br>
+&nbsp;
+&nbsp;
+
+It is not the intention of a search engine to provide results of type 3, i.e., combined results of Windows of OS and buildings.<br>
+&nbsp;
+Because, a user, who works in a building company, might not want Computer OS Windows as the output of the query. <br>
+&nbsp;
+The output should be building windows for this type of users.<br>
+&nbsp;
+
+On the other-hand, similarly. another user working as a software engineer, should get the output of Windows OS for the query.<br>
+&nbsp;
+
+This type of query results based on person’s interests is called <font color="red"> personalized search engines.</font> 
+<br>
+&nbsp;
+It is one of the most challenging sides of Information Retrieval (IR) to provide results based on person’s interests and ranked the results accordingly.<br>
+
+<br>
+&nbsp;
+&nbsp;
+&nbsp;
+&nbsp;
+
+##### Exercise
+
+
+References:
+https://nlp.stanford.edu/IR-book/pdf/irbookonlinereading.pdf 
+http://homepages.inf.ed.ac.uk/wmagdy/courses.htm
+<br>
+&nbsp;
+
+
+
+## Chapter 3: Classificiation   
+
+<br>
+&nbsp;
+
+**Intended Learning Outcomes:** By the end of Chapter 3 you will be able to:-
+
+* Define key terms in Information Retrieval (IR).
+
+<br>
+&nbsp;
+
+
+
+### 3.1 What is text classification ?
+<br>
+&nbsp;
+
+**Why do we need to classify texts?**
+<br>
+&nbsp;
+
+
+As an independent task<br>
+&nbsp;
+
+![](C:/IR Course/Adv -IR/pict53.png)
+
+
+<br>
+
+&nbsp;
+As a part of more complicated NLP tasks<br>
+<br>
+&nbsp;
+
+* Data Filtering <br>
+* Intent Classification in dialog systems <br>
+* Hybrid Machine translation systems <br>
+
+<br>
+&nbsp;
+
+
+**Text Classification in general**<br>
+&nbsp;
+
+![](C:/IR Course/Adv -IR/pict51.png)
+
+<br>
+&nbsp;
+
+<br> 
+&nbsp;
+
+
+<font color="red"> 3.2 High-level overview of the workflow </font> 
+
+<br> 
+&nbsp;
+
+![](C:/IR Course/Adv -IR/pict54.png)
+
+<br> 
+&nbsp;
+
+The dataset used in this project is the BBC News Raw Dataset. It can be downloaded from [here](http://mlg.ucd.ie/datasets/bbc.html "BBC")
+It consists of 2.225 documents from the BBC news website corresponding to stories in five topical areas from 2004 to 2005. These areas are:<br> 
+&nbsp;
+Business<br> 
+&nbsp;
+Entertainment<br> 
+&nbsp;
+Politics<br> 
+&nbsp;
+Sport<br> 
+&nbsp;
+Tech<br> 
+&nbsp;
+&nbsp;
+&nbsp;
+
+
+### 3.2 Exploratory Data Analysis
+<br> 
+&nbsp;
+It is a common practice to carry out an exploratory data analysis in order to gain some insights from the data.<br> 
+&nbsp;
+
+One of our main concerns when developing a classification model is whether the different classes are <font color="red">balanced </font>. This means that the dataset contains an approximately equal portion of each class.
+For example, if we had two classes and a 95% of observations belonging to one of them, a dumb classifier which always output the majority class would have 95% accuracy, although it would fail all the predictions of the minority class.
+There are several ways of dealing with <font color="red"> imbalanced datasets </font>. One first approach is to <font color="red"> undersample </font> the majority class and <font color="red">oversample</font> the minority one, so as to obtain a more <font color="red"> balanced </font> dataset. Other approach can be using other error metrics beyond accuracy such as the <font color="red"> precision </font>, the <font color="red"> recall</font>  or the <font color="red"> F1-score </font>. We’ll talk more about these metrics later.
+Looking at our data, we can get the % of observations belonging to each class:
+<br> 
+&nbsp;
+
+### <font color="blue"> Diving into Code </font>
+
+```{r, out.width='50%', fig.align='center', fig.cap='...'}
+
+library(RColorBrewer)
+df_final <- read.csv(file = "C:/data/BBC/News_dataset.csv", sep=';')
+
+# Simple Horizontal Bar Plot with Added Labels
+counts <- table(df_final$Category)
+coul <- brewer.pal(5, "Set2") 
+barplot(counts, main="Number of articles in each category",   names.arg=unique(df_final$Category), ylab="Number of Articles", col=coul)
+
+
+num_of_articles <-as.vector(nchar(as.character(df_final$Content)))
+df_final$Content <- as.vector(num_of_articles)
+df_final <-df_final[df_final$Content < quantile(df_final$Content, 0.95), ]
+
+boxplot(df_final$Content~Category,
+        data=df_final,
+        main="Different boxplots for each Category",
+        xlab="Categories",
+        ylab="Length of Article",
+        col=coul,
+        border="black"
+)
+
+
+```
+
+
+<br> 
+&nbsp;
+[Link to Python Jupyter Notebook]https://github.com/miguelfzafra/Latest-News-Classifier/blob/master/0.%20Latest%20News%20Classifier/02.%20Exploratory%20Data%20Analysis/02.%20Exploratory%20Data%20Analysis.ipynb
+
+<br> 
+&nbsp;
+
+### 3.3 Feature engineering 
+
+<br> 
+&nbsp;
+As for many ML tasks, it is possible to generate useful feature. For example:<br> 
+&nbsp;
+
+
+* General statistics: text length, text length variance <br>
+* Scores from tagged lists <br>
+<br>  
+  - Sentiment dictionaries: SentiWordNet, SentiWords <br>
+  - Subjectivity/Objectivity distionaries: MPQA <br>
+  
+<br>
+* Syntactic features<br>
+* POS tags<br>
+* Ad-hoc features: eg number of emojis <br>
+<br>
+
+Feature engineering is an essential part of building any intelligent system. As Andrew Ng says:<br>
+&nbsp;
+&nbsp;
+<font color="red">*“Coming up with features is difficult, time-consuming, requires expert knowledge. ‘Applied machine learning’ is basically feature engineering.”*</font><br>
+&nbsp;
+&nbsp;
+Feature engineering is the process of transforming data into features to act as inputs for machine learning models such that good quality features help in improving the model performance.<br>
+&nbsp;
+When dealing with text data, there are several ways of obtaining features that represent the data. A few common methods are delineated below.<br>
+&nbsp;
+
+
+#### 3.3.1 Text representation<br>
+&nbsp;
+
+In order to represent our text, every row of the dataset will be a single document of the corpus. The columns (features) will be different depending of which feature creation method we choose:<br>
+&nbsp;
+<font color="red">**Word Count Vectors**</font><br>
+&nbsp;
+With this method, every column is a term from the corpus, and every cell represents the frequency count of each term in each document.<br>
+&nbsp;
+<font color="red">**TF–IDF Vectors**</font><br>
+&nbsp;
+TF-IDF is a score that represents the relative importance of a term in the document and the entire corpus.<br>
+&nbsp;
+**See NLP Intro course for further explanation**<br>
+
+These two methods (Word Count Vectors and TF-IDF Vectors) are often named <color="red">Bag of Words</font> methods, since the order of the words in a sentence is ignored. The following methods are more advanced as they somehow preserve the order of the words and their lexical considerations.<br>
+<font color="red">**Word Embeddings** </font><br>
+&nbsp;
+The position of a word within the vector space is learned from text and is based on the words that surround the word when it is used.<br>
+**See NLP Intro course for further explanation **<br>
+&nbsp;
+<font color="red">**Text based or NLP based featuress** </font><br>
+&nbsp;
+We can manually create any feature that we think may be of importance when discerning between categories
+(i.e. word density, number of characters or words, etc…).
+We can also use NLP based features using Part of Speech models, which can tell us, for example, 
+if a word is a noun or a verb, and then use the frequency distribution of the PoS tags.
+<font color="red">**Topic Models** </font><br>
+&nbsp;
+Methods such as <font color="red"> Latent Dirichlet Allocation  </font> try to represent every topic by a 
+probabilistic distribution over words, in what is known as <font color="red">topic modeling</font><br>
+&nbsp;
+
+TF-IDF vectors have been chosen represent the documents in our corpus due to its simplicity and speed in the creation of vectors.<br>
+&nbsp;
+
+
+ngram_range: We want to consider both unigrams and bigrams.<br>
+&nbsp;
+max_df: When building the vocabulary ignore terms that have a document frequency strictly higher than the given threshold. <br>
+&nbsp;
+min_df: When building the vocabulary ignore terms that have a document frequency strictly lower than the given threshold.<br>
+&nbsp;
+max_features: If not None, build a vocabulary that only consider the top max_features ordered by term frequency across the corpus.<br>
+&nbsp;
+See **TfidfVectorizer** in scilearn for further detail.<br>
+&nbsp;
+
+
+
+
+
+
+
+When creating the features with this method, some parameters have to be chosen:<br>
+&nbsp;
+<font color="red">N-gram range:</font> unigrams, bigrams, trigrams ?<br>
+&nbsp;
+<font color="red">Maximum/Minimum Document Frequency:</font> when building the vocabulary, ignore terms that have a document frequency strictly higher/lower than the given threshold.<br>
+&nbsp;
+<font color="red">Maximum features:</font> Choose the top N features ordered by term frequency across the corpus.<br>
+&nbsp;
+The following parameters have been chosen:<br>
+&nbsp;
+
+![](C:/IR Course/Adv -IR/pict55.png)
+
+<br>
+&nbsp;
+&nbsp;
+
+### 3.4 Text cleaning <br>
+&nbsp;
+
+Before creating any feature from the raw text, we must perform a cleaning process to ensure no distortions are introduced
+to the model. used.<br>
+&nbsp;
+**See NLP Intro course for further explanation **<br>
+&nbsp;
+
+###  3.5 Label coding <br>
+&nbsp;
+
+Machine learning models require numeric features and labels to provide a prediction. A dictionary to map each label to a numerical ID has been created. This mapping scheme is as below:<br>
+&nbsp;
+
+
+![](C:/IR Course/Adv -IR/pict56.png)
+
+<br>
+&nbsp;
+
+###  3.6 Train — test split <br>
+&nbsp;
+A test set needs to be set up in order to prove the quality of the models when predicting unseen data. <br> A random split with 85% of the observations composing the training test and 15% of the observations composing the test set will be established. <br>  Hyperparameter tuning process with cross validation in the training data, fit the final model to it and  then evaluate it with totally unseen data so as to obtain an evaluation metric as less biased as possible. <br>
+
+&nbsp;
+
+<br>
+
+
+```{python}
+
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+from collections import Counter
+import random
+import nltk
+from nltk.stem import WordNetLemmatizer 
+import re
+from nltk.corpus import wordnet
+from nltk.corpus import stopwords
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.model_selection import train_test_split
+from sklearn.feature_selection import chi2
+import os
+os.chdir("C:/IR Course/Adv -IR/")
+import pickle
+from sklearn.ensemble import RandomForestClassifier
+from sklearn import svm
+from pprint import pprint
+from sklearn.model_selection import RandomizedSearchCV
+from sklearn.model_selection import GridSearchCV
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+from sklearn.model_selection import ShuffleSplit
+plt.style.use('ggplot')
+
+df_path = 'C:/data/BBC/'
+df_path2 = df_path + 'News_dataset.csv'
+df = pd.read_csv(df_path2, sep=';')
+df['News_Length']= df['Content'].apply(len)
+df.head()
+
+#some basic cleaning
+# \r and \n
+df['Content_Parsed_1'] = df['Content'].str.replace("\r", " ")
+df['Content_Parsed_1'] = df['Content_Parsed_1'].str.replace("\n", " ")
+
+
+
+def set_tokens_to_lowercase(data):
+    for index, entry in enumerate(data):
+        data[index] = entry.lower()
+    return data
+
+
+def remove_punctuation(data):
+    symbols = ",.!"
+    for index, entry in enumerate(symbols):
+        for index2, entry2 in enumerate (data):
+            data[index2] = re.sub(r'[^\w]', ' ', entry2)
+    return data
+
+def remove_stopwords_from_tokens(data):
+       stop_words = set(stopwords.words("english"))
+       new_list = []
+       for index, entry in enumerate(data):
+           no_stopwords = ""
+           entry = entry.split()
+           for word in entry:
+               if word not in stop_words:
+                    no_stopwords = no_stopwords + " " + word 
+           new_list.append(no_stopwords)
+       return new_list
+
+def lemmatiser (pdf, pcol):
+    wordnet_lemmatizer = WordNetLemmatizer()
+    lemmatized_text_list = []
+    
+   
+    
+    for row in range(len(pdf)):
+        
+        
+        # Create an empty list containing lemmatized words
+        lemmatized_list = []
+        
+        # Save the text and its words into an object
+        text = pdf.loc[row, pcol]
+        #print(text)
+       
+        text_words = text.split(" ")
+    
+        # Iterate through every word to lemmatize
+        for word in text_words:
+            lemmatized_list.append(wordnet_lemmatizer.lemmatize(word, pos="v"))
+            
+        # Join the list
+        lemmatized_text = " ".join(lemmatized_list)
+        
+        # Append to the list containing the texts
+        lemmatized_text_list.append(lemmatized_text)
+    return lemmatized_text_list
+
+df_path = 'C:/data/BBC/'
+df_path2 = df_path + 'News_dataset.csv'
+df = pd.read_csv(df_path2, sep=';')
+df['News_Length']= df['Content'].apply(len)
+
+# \r and \n
+df['Content_Parsed_1'] = df['Content'].str.replace("\r", " ")
+df['Content_Parsed_1'] = df['Content_Parsed_1'].str.replace("\n", " ")
+
+# Lowercasing the text
+df['Content_Parsed_2'] = df['Content_Parsed_1'].str.lower()
+# remove punctuation
+df['Content_Parsed_3'] = pd.Series(remove_punctuation (list(df['Content_Parsed_2'])))
+#remove possessive
+df['Content_Parsed_4'] = df['Content_Parsed_3'].str.replace("'s", "")
+
+#lemmatise
+df['Content_Parsed_5'] = lemmatiser (df, 'Content_Parsed_4')
+
+df['Content_Parsed_6'] = df['Content_Parsed_5']
+
+#remove stopwords
+df['Content_Parsed_6'] = pd.Series(remove_stopwords_from_tokens(list(df['Content_Parsed_6'])))
+
+list_columns = ["File_Name", "Category", "Complete_Filename", "Content", "Content_Parsed_6"]
+df = df[list_columns]
+
+df = df.rename(columns={'Content_Parsed_6': 'Content_Parsed'})
+
+print(df.loc[3,'Content_Parsed'])
+
+df.head(1)
+
+
+```
+
+<br>
+&nbsp;
+
+**ADD LABELS**
+
+<br>
+&nbsp;
+
+
+```{python}
+category_codes = {
+    'business': 0,
+    'entertainment': 1,
+    'politics': 2,
+    'sport': 3,
+    'tech': 4
+}
+
+# Category mapping
+df['Category_Code'] = df['Category']
+df = df.replace({'Category_Code':category_codes})
+
+
+## ensure no other category in dataframe
+
+for index, row in df.iterrows():
+    if row['Category_Code'] not in [0,1,2,3,4]:
+         df = df.drop (index)
+
+
+df.tail()
+
+
+```
+
+<br>
+&nbsp;
+
+**TRAIN - TEST SPLIT**
+
+<br>
+&nbsp;
+
+
+To prove the quality of the model a subset of the data is set apart for testing. The training data is used to tune hyperparameters and then test performance on the unseen data of the test set.
+
+Test set size of 15% of the full dataset is used.
+
+<br>
+&nbsp;
+
+```{python}
+X_train, X_test, y_train, y_test = train_test_split(df['Content_Parsed'], 
+                                                    df['Category_Code'], 
+                                                    test_size=0.15, 
+                                                    random_state=8)
+
+
+
+```
+
+
+<br>
+&nbsp;
+
+
+
+Parameters for tfidfvectorizer
+
+
+```{python}
+
+# Parameter election
+ngram_range = (1,2)
+min_df = 10
+max_df = 1.
+max_features = 300
+
+
+```
+
+<br>
+&nbsp;
+
+
+```{python}
+tfidf = TfidfVectorizer(encoding='utf-8',
+                        ngram_range=ngram_range,
+                        stop_words=None,
+                        lowercase=False,
+                        max_df=max_df,
+                        min_df=min_df,
+                        max_features=max_features,
+                        norm='l2',
+                        sublinear_tf=True)
+                        
+                        
+                        
+features_train = tfidf.fit_transform(X_train).toarray()
+labels_train = y_train
+labels_train = np.array(labels_train, dtype=np.int)
+
+#training data
+print(features_train.shape)
+
+```
+
+
+<br>
+&nbsp;
+
+
+
+```{python}
+features_test = tfidf.transform(X_test).toarray()
+labels_test = y_test
+labels_test = np.array(labels_test, dtype=np.int)
+
+
+#test data
+print(features_test.shape)
+
+
+
+for Product, category_id in sorted(category_codes.items()):
+    features_chi2 = chi2(features_train, labels_train == category_id)
+    indices = np.argsort(features_chi2[0])
+    feature_names = np.array(tfidf.get_feature_names())[indices]
+    unigrams = [v for v in feature_names if len(v.split(' ')) == 1]
+    bigrams = [v for v in feature_names if len(v.split(' ')) == 2]
+    print("# '{}' category:".format(Product))
+    print("  . Most correlated unigrams:\n. {}".format('\n. '.join(unigrams[-5:])))
+    print("  . Most correlated bigrams:\n. {}".format('\n. '.join(bigrams[-2:])))
+    print("")
+
+```
+
+
+
+<br>
+&nbsp;
+
+
+
+###  3.7 Model Training 
+<br>
+&nbsp;
+
+
+
+Once feature vectors are  built, machine learning classification models are used to find the one performs best on our data. We will try the following 2 models:
+
+<br>
+&nbsp;
+
+* Random Forest
+* Support Vector Machine
+
+
+The **methodology** used to train each model is as follows:
+
+* Decide on which hyperparameters to tune.
+* Define the metric to use when measuring the performance of a model. 
+* Once best combination of hyperparameters is reached it is used to obtain the accuracy of the training data and the test data, the classification report and the confusion matrix.
+
+<br>
+&nbsp;
+
+
+```{python}
+svc_0= svm.SVC(C=0.1, cache_size=200, class_weight=None, coef0=0.0,
+  decision_function_shape='ovr', degree=3, gamma='auto', kernel='linear',
+  max_iter=-1, probability=True, random_state=8, shrinking=True, tol=0.001,
+  verbose=False)
+
+
+print('Parameters currently in use:\n')
+print(svc_0.get_params())
+
+```
+
+
+<br>
+&nbsp;
+
+
+```{python}
+svc_0.fit(features_train, labels_train)
+svc_pred = svc_0.predict(features_test)
+
+```
+
+
+<br>
+&nbsp;
+
+```{python}
+print("The training accuracy is: ")
+print(accuracy_score(labels_train, svc_0.predict(features_train)))
+
+```
+
+
+<br>
+&nbsp;
+
+```{python}
+print("Classification report")
+print(classification_report(labels_test,svc_pred))
+
+```
+
+<br>
+&nbsp;
+
+## Chapter 4: Sentiment Analysis/Classification/Opinion Mining
+<br>
+&nbsp;
+**Intended Learning Outcomes**
+<br>
+&nbsp;
+1. Describe sentiment analysis.<br>
+&nbsp;
+2. Describe how sentiment analysis could be used to determine sentiment around a new product.<br>
+&nbsp;
+3. Give examples where sentiment in language may prove to be challenging to detect.<br>
+&nbsp;
+4. List advantages of sentiment analysis systems.<br>
+&nbsp;
+4. Describe how sentiment analysis can be undertaken.<br>
+&nbsp;
+5. Identify main steps involved in building a machine learning based sentiment classifer.<br>
+&nbsp;
+6. Take a data set and build a supervised based machine learning sentiment analysis classifer in Python. <br>
+&nbsp;
+
+### 4.1 What is Sentiment Analysis<br>
+&nbsp;
+&nbsp;
+Sentiment analysis is a  text classification task. Give a phrase, or a list of phrases the  classifier should indicate if the phrase is <font color="red">  positive, negative or neutral.</font>
+<br>
+&nbsp;
+
+Sentiment Analysis systems typically identify the following attributes of an expression:
+<br>
+&nbsp;
+&nbsp;
+**Polarity:** if the speaker express a positive or negative opinion.<br>
+**Subject:** the thing that is being talked about.<br>
+**Opinion holder:** the person, or entity that expresses the opinion.<br>
+&nbsp;
+
+
+![](C:/IR Course/Adv -IR/pict57.png)
+<br>
+&nbsp;
+
+
+
+In essence: **"It is the process of determining the emotional tone behind a series of words, used to gain an understanding of the the attitudes, opinions and emotions expressed within an online mention"** *(Bannister, 2018)*.
+<br>
+
+
+Used in:
+
+<br>
+
+* Social Media Monitoring<br>
+* Electioneering<br>
+* Market Research/CUstomer Service<br>
+
+Sentiment analysis systems allows companies to make sense of the sea of unstructured text by automating business processes, getting actionable insights, and saving hours of manual data processing.<br>
+
+&nbsp;
+Sentiment analysis can be applied at different levels of scope:<br>
+&nbsp;
+**Document level** sentiment analysis obtains the sentiment of a complete document or paragraph.<br>
+**Sentence level** sentiment analysis obtains the sentiment of a single sentence.<br>
+**Sub-sentence level** sentiment analysis obtains the sentiment of sub-expressions within a sentence.<br>
+&nbsp;
+
+There are many types and flavors of sentiment analysis am systems that focus on **polarity** (positive, negative, neutral) to systems that detect **feelings and emotions** (angry, happy, sad, etc) or **identify intentions** (e.g. interested v. not interested). <br>
+&nbsp;
+
+
+For example **Aspect-based sentiment analysis** indicates sentiment on different features related to a  product.<br>
+&nbsp;
+
+![](C:/IR Course/Adv -IR/pict59.png)
+
+<br>
+
+
+Another example is **Intent Analysis** basically detects what people want to do with a text rather than what people say with that text. Look at the following examples:<br>
+
+*“Your customer support is a disaster. I’ve been on hold for 20 minutes”.*
+
+*“I would like to know how to replace the cartridge”.*
+
+*“Can you help me fill out this form?”*
+<br>
+&nbsp;
+A human being has no problems detecting the **complaint** in the first text, the **question** in the second text, and the **request** in the third text. However, machines can have some problems to identify those. Sometimes, the intended action can be inferred from the text, but sometimes, inferring it requires some contextual knowledge.
+<br>
+&nbsp;
+### 4.2 Challenges in Sentiment Analysis
+<br>
+
+Human language is complex. Teaching a machine to analyse the various grammatical nuances, cultural variations, slang and misspellings that occur in online mentions is a difficult process. Teaching a machine to understand how context can affect tone is even more difficult.<br>
+&nbsp;
+
+
+**Contextual understanding**<br>
+&nbsp;
+Contextual understanding is pivotal for accurate sentiment detection.<br>
+&nbsp;
+*For example: “I am craving McDonald’s so bad”*.<br>
+&nbsp;
+Most systems will misinterpret this statement as negative by seeing the the phrase “so bad” <br>
+&nbsp;
+**Sentiment Ambiguity**<br>
+&nbsp;
+*“Can you recommend any good holiday destinations?”*<br>
+&nbsp;
+This statement doesn’t express any sentiment, although it uses the positive sentiment word “good” <br>
+&nbsp;
+**Sarcasm**<br>
+&nbsp;
+*“This phone has an awesome battery back-up of 2 hours."*<br>
+&nbsp;
+Obviously, this statement is negative, even though it has the positive word “happy”<br>
+&nbsp;
+**Comparatives**<br>
+&nbsp;
+*“Iphone is much better than Samsung.”*<br>
+&nbsp;
+Most Sentiment analyser tools cannot “pick sides” when they find comparative statements like the one mentioned here, they can only pick the sentiment based on keywords.<br>
+&nbsp;
+
+### 4.3 Advantages of sentiment analysis <br>
+&nbsp;
+
+**Scalability:**<br>
+&nbsp;
+There’s just too much data to process manually. Sentiment analysis allows processing of  data at scale in a efficient and cost-effective way.<br>
+&nbsp;
+
+**Real-time analysis:**<br>
+&nbsp;
+Sentiment analysis can to identify critical information that allows situational awareness during specific scenarios in real-time. <br>
+&nbsp;
+
+**Consistent criteria:**<br>
+&nbsp;
+By using a centralized sentiment analysis system, companies can apply the same criteria to all of their data. This helps to reduce errors and improve data consistency.<br>
+&nbsp;
+
+### 4.4 Practical Sentiment Analysis <br>
+&nbsp;
+
+There are many methods and algorithms to implement sentiment analysis systems, which can be classified as:<br>
+&nbsp;
+**Rule-based systems** that perform sentiment analysis based on a set of manually crafted rules.<br>
+&nbsp;
+**Automatic systems** that rely on machine learning techniques to learn from data.<br>
+&nbsp;
+**Hybrid systems** that combine both rule based and automatic approaches.<br>
+&nbsp;
+
+Below, are steps that are typically undertaken in the building an **automatic sentiment analysis system**.<br>
+&nbsp;
+![](C:/IR Course/Adv -IR/pict63.png)
+
+<br>
+&nbsp;
+
+
+In a more practical sense, the objective here is to takes text and
+produces a label (or labels) that summarizes the sentiment of this text, e.g. positive, neutral, and negative.<br>
+&nbsp;
+
+
+
+To solve this problem, typical machine learning pipeline is followed. <br>
+&nbsp;
+
+1.Import the required libraries and the dataset. <br>
+&nbsp;
+2.Exploratory data analysis.<br>
+&nbsp;
+3.Text Preprocessing.<br>
+&nbsp;
+4.Apply machine learning algorithms to train and test our sentiment analysis models.<br>
+&nbsp;
+
+**Import the Dataset**<br>
+&nbsp;
+
+```{python}
+airline_tweets = pd.read_csv("C:/data/tweets/Tweets.csv")
+airline_tweets.head()
+
+```
+<br>
+&nbsp;
+
+**Data Analysis**<br>
+&nbsp;
+
+```{python}
+
+import operator
+import pandas as pd
+import re
+import sklearn
+from sklearn.decomposition import PCA
+from sklearn import feature_extraction
+from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
+from nltk import ngrams
+from nltk.stem import PorterStemmer
+from nltk.stem import WordNetLemmatizer
+from nltk.corpus import stopwords
+from nltk.corpus import brown
+from nltk.collocations import *
+from nltk.corpus import webtext
+import numpy as np
+import random
+import pickle
+import pandas as pd
+from sklearn.metrics.pairwise import cosine_similarity  
+
+airline_tweets = pd.read_csv("C:/data/tweets/Tweets.csv")
+airline_tweets.head()
+
+```
+
+<br>
+&nbsp;
+
+``````{python eval=FALSE}
+
+library(reticulate)
+reticulate::repl_python()
+
+plot_size = plt.rcParams["figure.figsize"] 
+print(plot_size[0]) 
+print(plot_size[1])
+
+plot_size[0] = 8
+plot_size[1] = 6
+plt.rcParams["figure.figsize"] = plot_size 
+
+airline_tweets.airline.value_counts().plot(kind='pie', autopct='%1.0f%%')
+```
+
+<br>
+&nbsp;
+
+
+
+![](C:/IR Course/Adv -IR/pict60.png)
+
+<br>
+&nbsp;
+
+
+``````{python eval=FALSE}
+
+airline_tweets.airline_sentiment.value_counts().plot(kind='pie', autopct='%1.0f%%', colors=["red", "yellow", "green"])
+```
+
+<br>
+&nbsp;
+
+
+![](C:/IR Course/Adv -IR/pict61.png)
+
+<br>
+&nbsp;
+
+
+
+``````{python eval=FALSE}
+import seaborn as sns
+
+airline_sentiment = airline_tweets.groupby(['airline', 'airline_sentiment']).airline_sentiment.count().unstack()
+airline_sentiment.plot(kind='bar')
+
+```
+
+<br>
+&nbsp;
+
+![](C:/IR Course/Adv -IR/pict62.png)
+
+<br>
+&nbsp;
+
+**Data Cleaning**<br>
+&nbsp;
+
+Tweets contain many slang words and punctuation marks. 
+The tweets will have to be cleaned before they can be used for training the machine learning model. 
+
+Before cleaning the tweets, the dataset should be split into into **feature** and **label sets**.<br>
+&nbsp;
+
+The feature set will consist of tweets only.  The label set will consist of the sentiment of the tweet that we have to predict. The tweet test is in the 10th column. The sentiment of the tweet is in the second column (index 1). To create a feature and a label set, we can use the iloc method off the pandas data frame.<br>
+&nbsp;
+
+```{python}
+features = airline_tweets.iloc[:, 10].values
+labels = airline_tweets.iloc[:, 1].values
+
+print(features[1:5])
+print(labels[1:5])
+
+```
+
+<br>
+&nbsp;
+
+Now, the tweets should be cleaned. Functions developed in the introduction to NLP
+could be used, howevever knowing how to use regular expression is a key skill in NLP and 
+will be used here to clean the text. Further information on how to use regular expressions in Python can be found here: https://stackabuse.com/using-regex-for-text-manipulation-in-python/
+
+<br>
+&nbsp;
+
+
+```{python}
+processed_features = []
+
+for sentence in range(0, len(features)):
+    # Remove all the special characters
+    processed_feature = re.sub(r'\W', ' ', str(features[sentence]))
+
+    # remove all single characters
+    processed_feature= re.sub(r'\s+[a-zA-Z]\s+', ' ', processed_feature)
+
+    # Remove single characters from the start
+    processed_feature = re.sub(r'\^[a-zA-Z]\s+', ' ', processed_feature) 
+
+    # Substituting multiple spaces with single space
+    processed_feature = re.sub(r'\s+', ' ', processed_feature, flags=re.I)
+
+    # Removing prefixed 'b'
+    processed_feature = re.sub(r'^b\s+', '', processed_feature)
+
+    # Converting to Lowercase
+    processed_feature = processed_feature.lower()
+
+    processed_features.append(processed_feature)
+print (processed_feature[12])
+```
+
+<br>
+
+**Representing Text in Numeric Form**<br>
+&nbsp;
+
+To make statistical algorithms work with text, we first have to convert text to numbers.
+See Intro to NLP, section on vectorisation.
+<br>
+The tweets will be scored using TF-IDF mechanism.
+<br>
+&nbsp;
+
+
+```{python}
+from nltk.corpus import stopwords
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+vectorizer = TfidfVectorizer (max_features=2500, min_df=7, max_df=0.8, stop_words=stopwords.words('english'))
+processed_features = vectorizer.fit_transform(processed_features).toarray()
+```
+<br>
+&nbsp;
+
+In the code above, we define that the max_features should be 2500, which means that it only uses the<br>
+&nbsp; 2500 most frequently occurring words to create a bag of words feature vector. Words that occur less frequently are not very useful for classification.<br>
+&nbsp;
+
+Similarly, max_df specifies that only use those words that occur in a maximum of 80% of the documents. <br>
+&nbsp;Words that occur in all documents are too common and are not very useful for classification.<br>
+&nbsp; Similarly, min-df is set to 7 which shows that include words that occur in at least 7 documents.
+
+<br>
+&nbsp;
+**Dividing Data into Training and Test Sets**
+<br>
+&nbsp;
+&nbsp;
+Before we train our algorithms, we need to divide our data into **training and testing sets**. The training set will be used to train the algorithm while the test set will be used to evaluate the performance of the machine learning model.<br>
+&nbsp;
+
+```{python}
+X_train, X_test, y_train, y_test = train_test_split(processed_features, labels, test_size=0.2, random_state=0)
+```
+<br>
+The train_test_split class from the sklearn.model_selection module to divide our data into **training and testing set**. The method takes the feature set as the first parameter, the label set as the second parameter, and a value for the test_size parameter. A value of 0.2 for test_size is specified which means that our data set will be split into two sets of 80% and 20% data. The 80% dataset will be used for training and 20% dataset for testing.
+<br>
+&nbsp;
+
+**Training the Model**<br>
+&nbsp;
+
+The Random Forest algorithm will be used due to its ability to act upon non-normalized data.<br>
+&nbsp;
+
+The sklearn.ensemble module contains the RandomForestClassifier class that can be used to train the machine learning model using the random forest algorithm.<br> First a call to the fit method on the RandomForestClassifier class  is performed. This is then passed to the  training features and labels, as parameters. 
+<br>
+&nbsp;
+```{python}
+from sklearn.ensemble import RandomForestClassifier
+
+text_classifier = RandomForestClassifier(n_estimators=200, random_state=0)
+text_classifier.fit(X_train, y_train)
+```
+<br>
+&nbsp;
+**Making Predictions and Evaluating the Model**
+<br>
+&nbsp;
+&nbsp;
+Once the model has been trained, the last step is to make predictions on the model. <br>To do so, a call is made to the predict method on the object of the RandomForestClassifier class that we used for training. <br>Look at the following script:<br>
+&nbsp;
+```{python}
+predictions = text_classifier.predict(X_test)
+```
+<br>
+&nbsp;
+Finally, to evaluate the performance of the machine learning models, classification metrics such as a confusion metrix, F1 measure, accuracy are employed as shown below.
+
+```{python}
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+
+print(confusion_matrix(y_test,predictions))
+print(classification_report(y_test,predictions))
+print(accuracy_score(y_test, predictions))
+```
+<br>
+&nbsp;
+
+Different Python libraries were used to contribute to performing sentiment analysis. An analysis was done on  public tweets regarding six US airlines and achieved an accuracy of around 75%. 
+
+**Exercises:**
+<br>
+&nbsp;
+
+References:
+<br>
+&nbsp;
+
+https://medium.com/seek-blog/your-guide-to-sentiment-analysis-344d43d225a7
+https://stackabuse.com/python-for-nlp-sentiment-analysis-with-scikit-learn/
+https://monkeylearn.com/sentiment-analysis/
+<br>
+&nbsp;
+
+
+
+
+
